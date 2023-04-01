@@ -1,0 +1,29 @@
+﻿<Window x:Class="Pfxify.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:behaviors="clr-namespace:Pfxify.Behaviors"
+        xmlns:local="clr-namespace:Pfxify"
+        mc:Ignorable="d"
+        Title="Pfxify" Height="450" Width="800"
+        AllowDrop="True"
+        >
+    <Grid behaviors:DropBehavior.PreviewDropCommand="{Binding DropCommand}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="auto"/>
+        </Grid.RowDefinitions>
+
+        <ListView Margin="10" ItemsSource="{Binding CryptographyObjects}">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Name" Width="auto" DisplayMemberBinding="{Binding Name}"/>
+                    <GridViewColumn Header="Typ" Width="auto" DisplayMemberBinding="{Binding Type}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <Button Content="PFX" Command="{Binding Path=ToPfxCommand}" Grid.Row="1"/>
+    </Grid>
+</Window>
