@@ -1,12 +1,10 @@
 ﻿using CommunityToolkit.Mvvm.Input;
-using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.OpenSsl;
 using Org.BouncyCastle.Pkcs;
 using Org.BouncyCastle.X509;
 using Pfxify.BusinessObjects;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -94,29 +92,93 @@ namespace Pfxify.ViewModels
 
             foreach (var file in files)
             {
-                using var certStream = File.OpenRead(file);
-                using var certStreamReader = new StreamReader(certStream);
-                using var certPemReader = new PemReader(certStreamReader, new PasswordFinder(Path.GetFileName(file)));
-                var certPemObject = certPemReader.ReadPemObject();
+                switch (Path.GetExtension(file))
+                {
+                    case ".pem":
+                        ParsePemFile(file);
+                        break;
 
-                if (certPemObject.Type.Contains("PRIVATE KEY"))
-                {
-                    certStream.Seek(0, SeekOrigin.Begin);
-                    var certObject = certPemReader.ReadObject();
-                    CryptographyObjects.Add(new PrivateKeyCryptographyObject
-                    {
-                        PrivateKey = (AsymmetricKeyParameter)certObject
-                    });
+                    case ".pfx":
+                        ParsePfxFile(file);
+                        break;
+                    default:
+                        MessageBox.Show("Invalid file type");
+                        break;
                 }
-                else if (certPemObject.Type.Contains("CERTIFICATE"))
+
+            }
+        }
+
+        private void ParsePfxFile(string file)
+        {
+            using var fileStream = File.Open(file, FileMode.Open, FileAccess.Read);
+            var store = new Pkcs12StoreBuilder().Build();
+
+            try
+            {
+                store.Load(fileStream, Array.Empty<char>());
+            }
+            catch (IOException)
+            {
+                var passwordInput = new PasswordInput(Path.GetFileName(file));
+                if (passwordInput.ShowDialog().GetValueOrDefault(false) == false)
                 {
-                    certStream.Seek(0, SeekOrigin.Begin);
-                    var certObject = certPemReader.ReadObject();
+                    return;
+                }
+
+                fileStream.Seek(0, SeekOrigin.Begin);
+                store = new Pkcs12StoreBuilder().Build();
+                store.Load(fileStream, passwordInput.Password.ToCharArray());
+            }
+
+            foreach (var alias in store.Aliases)
+            {
+                if (store.IsCertificateEntry(alias))
+                {
                     CryptographyObjects.Add(new CertificateCryptographyObject
                     {
-                        Certificate = (X509Certificate)certObject
+                        Certificate = store.GetCertificate(alias).Certificate
                     });
                 }
+                else if (store.IsKeyEntry(alias))
+                {
+                    CryptographyObjects.Add(new PrivateKeyCryptographyObject
+                    {
+                        PrivateKey = store.GetKey(alias).Key
+                    });
+                }
+            }
+
+        }
+
+        private void ParsePemFile(string file)
+        {
+            FileStream certStream;
+            StreamReader certStreamReader;
+            PemReader certPemReader;
+
+            certStream = File.OpenRead(file);
+            certStreamReader = new StreamReader(certStream);
+            certPemReader = new PemReader(certStreamReader, new PasswordFinder(Path.GetFileName(file)));
+            var certPemObject = certPemReader.ReadPemObject();
+
+            if (certPemObject.Type.Contains("PRIVATE KEY"))
+            {
+                certStream.Seek(0, SeekOrigin.Begin);
+                var certObject = certPemReader.ReadObject();
+                CryptographyObjects.Add(new PrivateKeyCryptographyObject
+                {
+                    PrivateKey = (AsymmetricKeyParameter)certObject
+                });
+            }
+            else if (certPemObject.Type.Contains("CERTIFICATE"))
+            {
+                certStream.Seek(0, SeekOrigin.Begin);
+                var certObject = certPemReader.ReadObject();
+                CryptographyObjects.Add(new CertificateCryptographyObject
+                {
+                    Certificate = (X509Certificate)certObject
+                });
             }
         }
 
